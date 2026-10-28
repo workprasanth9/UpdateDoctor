@@ -39,7 +39,7 @@ New in 1.1.0: `UpdateDoctor.app` puts the same verdict in the menu bar as a colo
 - **Run full check (admin)...** runs the bundled `updatedoctor doctor --json` once through the standard macOS administrator password prompt (`osascript` with administrator privileges). There is no privileged helper and nothing stays running as root.
 - **Start at login** (uses the macOS login items service), **About**, and **Quit**.
 
-- No Dock icon. On the first launch, and whenever you open UpdateDoctor again from Applications, Finder or Spotlight, it shows a status window with the same checks, so you can tell it is running. On a MacBook with a notch, a crowded menu bar can hide the dot behind the notch; quit a few menu bar apps or hold Command and drag icons to make room.
+- No Dock icon. On the first launch, and whenever you open UpdateDoctor again from Applications, Finder or Spotlight, it shows a status window with the same checks, sized to fit them, so you can tell it is running. On a MacBook with a notch, a crowded menu bar can hide the dot behind the notch; quit a few menu bar apps or hold Command and drag icons to make room.
 
 The app links the same `UpdateDoctorKit` as the command line tool, so the checks and verdicts are identical. It only reads, like the CLI. It has no Dock icon.
 

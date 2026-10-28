@@ -9,7 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var timer: Timer?
     private let queue = DispatchQueue(label: "com.updatedoctor.menu.check")
     private var window: NSWindow?
-    private var windowText: NSTextField?
+    private var windowText: NSTextView?
+    private var windowScroll: NSScrollView?
     static let interval: TimeInterval = 30 * 60
     static let welcomedKey = "WelcomeShown"
 
@@ -100,55 +101,99 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func showStatusWindow() {
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 560),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Self.windowWidth, height: 400),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             w.title = "UpdateDoctor"
             w.isReleasedWhenClosed = false
-            let text = NSTextField(wrappingLabelWithString: "")
-            text.isSelectable = true
-            let scroll = NSScrollView()
+            w.minSize = NSSize(width: 420, height: 240)
+
+            // A real text view in a scroll view: it reports its own laid out height,
+            // so the window can size itself to the content without clipping.
+            let scroll = NSTextView.scrollableTextView()
             scroll.hasVerticalScroller = true
+            scroll.autohidesScrollers = true
             scroll.drawsBackground = false
-            let doc = FlippedView()
-            doc.translatesAutoresizingMaskIntoConstraints = false
-            text.translatesAutoresizingMaskIntoConstraints = false
-            doc.addSubview(text)
-            scroll.documentView = doc
-            NSLayoutConstraint.activate([
-                text.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: 4),
-                text.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -4),
-                text.topAnchor.constraint(equalTo: doc.topAnchor, constant: 4),
-                text.bottomAnchor.constraint(equalTo: doc.bottomAnchor, constant: -4),
-                doc.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
-            ])
+            scroll.borderType = .noBorder
+            let text = scroll.documentView as! NSTextView
+            text.isEditable = false
+            text.isSelectable = true
+            text.drawsBackground = false
+            text.textContainerInset = NSSize(width: Self.textInset, height: Self.textInset)
+            text.textContainer?.lineFragmentPadding = 0
+            scroll.translatesAutoresizingMaskIntoConstraints = false
+
             let check = NSButton(title: "Check now", target: self, action: #selector(checkNow))
             let admin = NSButton(title: "Run full check (admin)...", target: self, action: #selector(runAdminCheck))
             let close = NSButton(title: "Close", target: w, action: #selector(NSWindow.performClose(_:)))
             close.keyEquivalent = "\r"
-            let buttons = NSStackView(views: [check, admin, NSView(), close])
+            let spacer = NSView()
+            spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            let buttons = NSStackView(views: [check, admin, spacer, close])
             buttons.orientation = .horizontal
-            let stack = NSStackView(views: [scroll, buttons])
-            stack.orientation = .vertical
-            stack.alignment = .leading
-            stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
-            stack.translatesAutoresizingMaskIntoConstraints = false
-            w.contentView = NSView()
-            w.contentView!.addSubview(stack)
+            buttons.translatesAutoresizingMaskIntoConstraints = false
+
+            let content = NSView()
+            content.addSubview(scroll)
+            content.addSubview(buttons)
             NSLayoutConstraint.activate([
-                stack.leadingAnchor.constraint(equalTo: w.contentView!.leadingAnchor),
-                stack.trailingAnchor.constraint(equalTo: w.contentView!.trailingAnchor),
-                stack.topAnchor.constraint(equalTo: w.contentView!.topAnchor),
-                stack.bottomAnchor.constraint(equalTo: w.contentView!.bottomAnchor),
-                scroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32),
-                buttons.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32),
+                scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+                scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+                scroll.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
+                buttons.topAnchor.constraint(equalTo: scroll.bottomAnchor, constant: 12),
+                buttons.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
+                buttons.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+                buttons.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -16),
             ])
-            w.center()
+            w.contentView = content
             window = w
             windowText = text
+            windowScroll = scroll
+            updateStatusWindow()
+            fitWindowToContent()
+            w.center()
+        } else {
+            updateStatusWindow()
         }
-        updateStatusWindow()
+        scrollStatusToTop()
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { [weak self] in self?.scrollStatusToTop() }
+    }
+
+    static let windowWidth: CGFloat = 620
+    static let textInset: CGFloat = 10
+    /// Space taken by the window chrome around the text: top gap, button row, gaps.
+    static let chromeHeight: CGFloat = 8 + 12 + 32 + 16
+
+    /// Height the text needs at the given width, including its insets.
+    static func textHeight(_ text: NSTextView, width: CGFloat) -> CGFloat {
+        guard let container = text.textContainer, let layout = text.layoutManager else { return 0 }
+        container.containerSize = NSSize(width: width - 2 * textInset, height: .greatestFiniteMagnitude)
+        layout.ensureLayout(for: container)
+        return ceil(layout.usedRect(for: container).height) + 2 * textInset + 2
+    }
+
+    /// Size the window to fit all text, capped at 85 percent of the visible screen height.
+    private func fitWindowToContent(growOnly: Bool = false) {
+        guard let w = window, let text = windowText else { return }
+        let width = w.contentLayoutRect.width - 24
+        let needed = Self.textHeight(text, width: width) + Self.chromeHeight
+        let screen = (w.screen ?? NSScreen.main)?.visibleFrame.height ?? 800
+        let height = min(max(needed, 240), floor(screen * 0.85) - 28)
+        if growOnly && height <= w.contentLayoutRect.height { return }
+        var frame = w.frame
+        let newFrame = w.frameRect(forContentRect: NSRect(x: 0, y: 0, width: w.contentLayoutRect.width, height: height))
+        frame.origin.y += frame.height - newFrame.height
+        frame.size = newFrame.size
+        w.setFrame(frame, display: true)
+        scrollStatusToTop()
+    }
+
+    private func scrollStatusToTop() {
+        guard let scroll = windowScroll else { return }
+        windowText?.scroll(.zero)
+        scroll.contentView.scroll(to: .zero)
+        scroll.reflectScrolledClipView(scroll.contentView)
     }
 
     private func updateStatusWindow() {
@@ -171,7 +216,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             + "quit a few menu bar apps, or hold Command and drag icons to make room. "
             + "Open UpdateDoctor again from Applications at any time to show this window.",
             .systemFont(ofSize: 11), .secondaryLabelColor)
-        text.attributedStringValue = out
+        text.textStorage?.setAttributedString(out)
+        // Grow the window when results arrive so the last row is not clipped.
+        fitWindowToContent(growOnly: true)
     }
 
     // MARK: Menu
@@ -306,9 +353,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 }
 
 /// Top aligned document view, so the status window scrolls from the top.
-final class FlippedView: NSView {
-    override var isFlipped: Bool { true }
-}
 
 let app = NSApplication.shared
 let delegate = AppDelegate()
