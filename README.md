@@ -107,7 +107,7 @@ Be clear about what was proven where:
 
 - **Real Mac (MacBook Air, Mac16,12, Apple silicon, macOS 26.7, not MDM enrolled, not root):** every check ran. It correctly found the Mac was behind 26.7.2, listed the offered updates, read disk, battery, FileVault, network, scan history (and the beta catalog), and the DDM error record (empty). It skipped the Bootstrap Token check with the reason. `--json`, `--ea`, `--quick`, `--offline` and `--logs` were all run there.
 - **Fixtures only:** MDM enrolled Macs, Bootstrap Token escrowed and missing, a non empty DDM error record, managed deferral profiles, low disk, AC power, and Intel board-id matching. These outputs are synthetic files modeled on the documented formats (named `synthetic_*` in `Tests/UpdateDoctorKitTests/Fixtures`). They have **not** been verified on a real managed Mac yet. Reports from managed fleets are very welcome.
-- **GitHub Actions (macos-15 runner):** build, tests, universal binary and a smoke run of `doctor`.
+- **GitHub Actions (macos-15-intel runner):** build, 19 XCTest tests, universal binary, pkg, and a smoke run of `doctor` on an unmanaged runner. The universal release binary was also run on the Apple silicon MacBook Air above, and `brew install workprasanth9/tap/updatedoctor` was tested into a fresh scratch Homebrew prefix without `brew trust`.
 
 ## Building from source
 
