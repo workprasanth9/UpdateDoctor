@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/AppIcon-1024.png" width="160" alt="UpdateDoctor app icon"></p>
+
 # UpdateDoctor
 
 **Why didn't this Mac update?** `updatedoctor` answers that in one command.
@@ -36,6 +38,8 @@ New in 1.1.0: `UpdateDoctor.app` puts the same verdict in the menu bar as a colo
 - Checks that need root (the Bootstrap Token check on an MDM enrolled Mac) show as **Needs admin**.
 - **Run full check (admin)...** runs the bundled `updatedoctor doctor --json` once through the standard macOS administrator password prompt (`osascript` with administrator privileges). There is no privileged helper and nothing stays running as root.
 - **Start at login** (uses the macOS login items service), **About**, and **Quit**.
+
+- No Dock icon. On the first launch, and whenever you open UpdateDoctor again from Applications, Finder or Spotlight, it shows a status window with the same checks, so you can tell it is running. On a MacBook with a notch, a crowded menu bar can hide the dot behind the notch; quit a few menu bar apps or hold Command and drag icons to make room.
 
 The app links the same `UpdateDoctorKit` as the command line tool, so the checks and verdicts are identical. It only reads, like the CLI. It has no Dock icon.
 
@@ -159,6 +163,7 @@ swift build -c release
 swift test                 # needs Xcode (XCTest)
 swift run fixture-tests    # same tests without XCTest, for Macs with only the Command Line Tools (not used in CI)
 ./Scripts/build-release.sh [--universal]   # --universal needs Xcode
+swift Scripts/make-icon.swift              # regenerates assets/AppIcon-1024.png and App/AppIcon.icns
 ./Scripts/build-app.sh [--universal]       # dist/UpdateDoctor.app
 ./Scripts/build-pkg.sh                     # app plus CLI
 ```

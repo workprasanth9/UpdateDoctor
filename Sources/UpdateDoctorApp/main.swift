@@ -8,7 +8,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var timer: Timer?
     private let queue = DispatchQueue(label: "com.updatedoctor.menu.check")
+    private var window: NSWindow?
+    private var windowText: NSTextField?
     static let interval: TimeInterval = 30 * 60
+    static let welcomedKey = "WelcomeShown"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -20,6 +23,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         checkNow()
+        // An LSUIElement app has no Dock icon, so opening it can look like nothing
+        // happened, and a crowded menu bar can hide the dot behind the notch.
+        // Show the status window on the first launch and whenever it is opened again.
+        if !UserDefaults.standard.bool(forKey: Self.welcomedKey) {
+            UserDefaults.standard.set(true, forKey: Self.welcomedKey)
+            showStatusWindow()
+        }
         timer = Timer.scheduledTimer(withTimeInterval: Self.interval, repeats: true) { [weak self] _ in
             self?.checkNow()
         }
@@ -81,11 +91,95 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showStatusWindow()
+        return true
+    }
+
+    // MARK: Status window
+
+    @objc func showStatusWindow() {
+        if window == nil {
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 560),
+                             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            w.title = "UpdateDoctor"
+            w.isReleasedWhenClosed = false
+            let text = NSTextField(wrappingLabelWithString: "")
+            text.isSelectable = true
+            let scroll = NSScrollView()
+            scroll.hasVerticalScroller = true
+            scroll.drawsBackground = false
+            let doc = FlippedView()
+            doc.translatesAutoresizingMaskIntoConstraints = false
+            text.translatesAutoresizingMaskIntoConstraints = false
+            doc.addSubview(text)
+            scroll.documentView = doc
+            NSLayoutConstraint.activate([
+                text.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: 4),
+                text.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -4),
+                text.topAnchor.constraint(equalTo: doc.topAnchor, constant: 4),
+                text.bottomAnchor.constraint(equalTo: doc.bottomAnchor, constant: -4),
+                doc.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+            ])
+            let check = NSButton(title: "Check now", target: self, action: #selector(checkNow))
+            let admin = NSButton(title: "Run full check (admin)...", target: self, action: #selector(runAdminCheck))
+            let close = NSButton(title: "Close", target: w, action: #selector(NSWindow.performClose(_:)))
+            close.keyEquivalent = "\r"
+            let buttons = NSStackView(views: [check, admin, NSView(), close])
+            buttons.orientation = .horizontal
+            let stack = NSStackView(views: [scroll, buttons])
+            stack.orientation = .vertical
+            stack.alignment = .leading
+            stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+            stack.translatesAutoresizingMaskIntoConstraints = false
+            w.contentView = NSView()
+            w.contentView!.addSubview(stack)
+            NSLayoutConstraint.activate([
+                stack.leadingAnchor.constraint(equalTo: w.contentView!.leadingAnchor),
+                stack.trailingAnchor.constraint(equalTo: w.contentView!.trailingAnchor),
+                stack.topAnchor.constraint(equalTo: w.contentView!.topAnchor),
+                stack.bottomAnchor.constraint(equalTo: w.contentView!.bottomAnchor),
+                scroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32),
+                buttons.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32),
+            ])
+            w.center()
+            window = w
+            windowText = text
+        }
+        updateStatusWindow()
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    private func updateStatusWindow() {
+        guard let text = windowText else { return }
+        let out = NSMutableAttributedString()
+        func add(_ s: String, _ font: NSFont, _ color: NSColor = .labelColor) {
+            out.append(NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: color]))
+        }
+        add("\(model.headline)\n", .boldSystemFont(ofSize: 15))
+        add("\(model.isChecking ? "Checking..." : model.lastCheckedText())\n", .systemFont(ofSize: 11), .secondaryLabelColor)
+        if let summary = model.report?.summary { add("\(summary)\n", .systemFont(ofSize: 12)) }
+        if let error = model.lastError { add("\(error)\n", .systemFont(ofSize: 12), .systemRed) }
+        add("\n", .systemFont(ofSize: 6))
+        for row in model.rows {
+            add("\(Self.mark(row))  \(row.title): \(row.statusLabel)\n", .systemFont(ofSize: 12))
+            add("      \(row.detail)\n", .systemFont(ofSize: 11), .secondaryLabelColor)
+        }
+        add("\nUpdateDoctor lives in the menu bar as a colored dot and has no Dock icon. "
+            + "If you cannot see the dot, the notch or other menu bar icons may be hiding it: "
+            + "quit a few menu bar apps, or hold Command and drag icons to make room. "
+            + "Open UpdateDoctor again from Applications at any time to show this window.",
+            .systemFont(ofSize: 11), .secondaryLabelColor)
+        text.attributedStringValue = out
+    }
+
     // MARK: Menu
 
     func menuWillOpen(_ menu: NSMenu) { rebuild() }
 
     private func rebuild() {
+        updateStatusWindow()
         statusItem.button?.image = Self.icon(for: model.health, checking: model.isChecking)
         let menu = NSMenu()
         menu.delegate = self
@@ -131,6 +225,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
+        let show = NSMenuItem(title: "Show status window", action: #selector(showStatusWindow), keyEquivalent: "")
+        show.target = self
+        menu.addItem(show)
         let about = NSMenuItem(title: "About UpdateDoctor", action: #selector(showAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
@@ -206,6 +303,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         image.accessibilityDescription = "UpdateDoctor \(health.title)"
         return image
     }
+}
+
+/// Top aligned document view, so the status window scrolls from the top.
+final class FlippedView: NSView {
+    override var isFlipped: Bool { true }
 }
 
 let app = NSApplication.shared

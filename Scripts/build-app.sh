@@ -23,6 +23,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/UpdateDoctorApp" "$APP/Contents/MacOS/UpdateDoctor"
 cp "$BIN_DIR/updatedoctor" "$APP/Contents/Resources/updatedoctor"
 chmod 755 "$APP/Contents/MacOS/UpdateDoctor" "$APP/Contents/Resources/updatedoctor"
+cp App/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 sed "s/__VERSION__/${VERSION}/g" App/Info.plist > "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 xattr -cr "$APP" 2>/dev/null || true

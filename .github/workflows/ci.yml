@@ -47,6 +47,7 @@ jobs:
           lipo -archs dist/UpdateDoctor.app/Contents/MacOS/UpdateDoctor | grep -q arm64
           lipo -info dist/UpdateDoctor.app/Contents/Resources/updatedoctor
           codesign -dv dist/UpdateDoctor.app 2>&1 | grep -E "flags|Signature"
+          test -f dist/UpdateDoctor.app/Contents/Resources/AppIcon.icns
           dist/UpdateDoctor.app/Contents/MacOS/UpdateDoctor --self-test
           dist/UpdateDoctor.app/Contents/Resources/updatedoctor version
           VERSION=$(sed -nE 's/.*current = "(.*)".*/\1/p' Sources/UpdateDoctorKit/Version.swift)
@@ -55,7 +56,7 @@ jobs:
       - name: Build installer package
         run: |
           ./Scripts/build-pkg.sh
-          pkgutil --payload-files dist/UpdateDoctor-*.pkg | grep -E "UpdateDoctor.app$|updatedoctor$"
+          pkgutil --payload-files dist/UpdateDoctor-*.pkg | grep -E "UpdateDoctor.app$|updatedoctor$|AppIcon.icns$"
           (cd dist && shasum -a 256 updatedoctor-*.tar.gz updatedoctor-*.zip UpdateDoctor-*-app.zip UpdateDoctor-*.pkg > SHA256SUMS.txt && cat SHA256SUMS.txt)
 
       - uses: actions/upload-artifact@v4
