@@ -1,0 +1,2 @@
+      "target-type" = <"J713">
+      "model" = <"Mac16,12">

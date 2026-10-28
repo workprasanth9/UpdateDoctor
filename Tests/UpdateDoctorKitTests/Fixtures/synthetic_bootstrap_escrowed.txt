@@ -1,0 +1,2 @@
+profiles: Bootstrap Token supported on server: YES
+profiles: Bootstrap Token escrowed to server: YES

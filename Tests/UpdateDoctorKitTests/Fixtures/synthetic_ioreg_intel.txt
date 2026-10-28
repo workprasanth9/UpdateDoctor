@@ -1,0 +1,2 @@
+      "board-id" = <"Mac-827FB448E656EC26">
+      "model" = <"MacBookPro15,2">

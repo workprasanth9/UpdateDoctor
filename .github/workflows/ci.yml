@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Text check (no em dashes)
+        run: ./Scripts/check-text.sh
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Unit tests (XCTest, recorded fixtures, no MDM needed)
+        run: swift test
+
+      - name: Fixture tests (same tests through the CLT runner)
+        run: swift run fixture-tests
+
+      - name: Build universal release
+        run: ./Scripts/build-release.sh --universal
+
+      - name: Smoke test on the runner
+        run: |
+          lipo -info dist/updatedoctor
+          lipo -archs dist/updatedoctor | grep -q x86_64
+          lipo -archs dist/updatedoctor | grep -q arm64
+          dist/updatedoctor version
+          dist/updatedoctor help
+          # Hosted runners are not MDM managed. The report is informational here.
+          dist/updatedoctor doctor --quick || true
+          dist/updatedoctor doctor --quick --json > report.json || true
+          python3 -c "import json; r=json.load(open('report.json')); print(r['verdict'], len(r['checks']), 'checks')"
+          dist/updatedoctor doctor --quick --ea || true
+
+      - name: Build installer package
+        run: |
+          ./Scripts/build-pkg.sh
+          pkgutil --payload-files dist/UpdateDoctor-*.pkg
+          (cd dist && shasum -a 256 updatedoctor-*.tar.gz updatedoctor-*.zip UpdateDoctor-*.pkg > SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updatedoctor-macos-universal
+          path: |
+            dist/updatedoctor-*.tar.gz
+            dist/updatedoctor-*.zip
+            dist/UpdateDoctor-*.pkg
+            dist/SHA256SUMS.txt
