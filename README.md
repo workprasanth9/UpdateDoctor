@@ -22,20 +22,62 @@ Verdict: AT_RISK
 
 (Shortened real output from a MacBook Air running macOS 26.7.)
 
+## Menu bar app
+
+New in 1.1.0: `UpdateDoctor.app` puts the same verdict in the menu bar as a colored dot.
+
+![UpdateDoctor in the menu bar, yellow because this Mac is at risk](docs/menubar-at-risk.png)
+
+(Real capture from the MacBook Air above: the yellow dot at the left is UpdateDoctor, at risk because the Mac is behind 26.7.2 and on battery.)
+
+- **Green** is HEALTHY, **yellow** is AT_RISK, **red** is BLOCKED, gray means not checked yet.
+- The dropdown lists every check with its status and reason, the summary, and when it last ran. Hover a check to see the recommended fix.
+- **Check now** reruns the checks. They also run on launch and every 30 minutes, without root.
+- Checks that need root (the Bootstrap Token check on an MDM enrolled Mac) show as **Needs admin**.
+- **Run full check (admin)...** runs the bundled `updatedoctor doctor --json` once through the standard macOS administrator password prompt (`osascript` with administrator privileges). There is no privileged helper and nothing stays running as root.
+- **Start at login** (uses the macOS login items service), **About**, and **Quit**.
+
+The app links the same `UpdateDoctorKit` as the command line tool, so the checks and verdicts are identical. It only reads, like the CLI. It has no Dock icon.
+
 ## Install
 
-Homebrew, one line. No `brew trust` step is needed, because this is a formula, not a cask:
+### Homebrew
+
+Command line tool (formula):
 
 ```bash
 brew install workprasanth9/tap/updatedoctor
 ```
 
-Installer package (installs `/usr/local/bin/updatedoctor`, good for Jamf):
-download `UpdateDoctor-1.0.0.pkg` from the [latest release](https://github.com/workprasanth9/UpdateDoctor/releases/latest).
+Menu bar app, with the command line tool inside (cask):
 
-Plain binary: download `updatedoctor-1.0.0-macos-universal.tar.gz` from the release, extract it, and put `updatedoctor` on your PATH. If you download it in a browser, macOS may quarantine it; run `xattr -d com.apple.quarantine updatedoctor` once. The binary is ad hoc signed, not notarized.
+```bash
+brew install --cask workprasanth9/tap/updatedoctor-app
+```
 
-Requires macOS 13 or later. Universal binary for Apple silicon and Intel.
+Installing by the full `workprasanth9/tap/...` name trusts that one entry, so no separate step is needed. Homebrew 7 refuses short names from a third party tap until you trust it, so if you prefer short names:
+
+```bash
+brew tap workprasanth9/tap
+brew trust workprasanth9/tap
+brew install updatedoctor              # or: brew install --cask updatedoctor-app
+```
+
+The cask installs `UpdateDoctor.app` in /Applications and links its bundled `updatedoctor`, so install either the formula or the cask, not both. Remove with `brew uninstall updatedoctor` or `brew uninstall --cask updatedoctor-app` (add `--zap` to the cask to remove its preferences).
+
+### Installer package
+
+`UpdateDoctor-<version>.pkg` from the [latest release](https://github.com/workprasanth9/UpdateDoctor/releases/latest) installs `UpdateDoctor.app` in /Applications and `/usr/local/bin/updatedoctor`. Good for Jamf.
+
+### Plain downloads
+
+- `UpdateDoctor-<version>-app.zip`: the menu bar app.
+- `updatedoctor-<version>-macos-universal.tar.gz` (or `.zip`): the command line tool. Put `updatedoctor` on your PATH.
+- `SHA256SUMS.txt`: checksums.
+
+The app and binary are ad hoc signed with the hardened runtime and **not notarized**. If macOS blocks the app after a browser download, Control-click (right click) it in Finder and choose Open, or allow it in System Settings > Privacy & Security. For a downloaded binary, run `xattr -d com.apple.quarantine updatedoctor` once. The pkg is unsigned, so right click it and choose Open if macOS blocks it.
+
+Requires macOS 13 or later. Universal builds for Apple silicon and Intel.
 
 ## Usage
 
@@ -107,7 +149,8 @@ Be clear about what was proven where:
 
 - **Real Mac (MacBook Air, Mac16,12, Apple silicon, macOS 26.7, not MDM enrolled, not root):** every check ran. It correctly found the Mac was behind 26.7.2, listed the offered updates, read disk, battery, FileVault, network, scan history (and the beta catalog), and the DDM error record (empty). It skipped the Bootstrap Token check with the reason. `--json`, `--ea`, `--quick`, `--offline` and `--logs` were all run there.
 - **Fixtures only:** MDM enrolled Macs, Bootstrap Token escrowed and missing, a non empty DDM error record, managed deferral profiles, low disk, AC power, and Intel board-id matching. These outputs are synthetic files modeled on the documented formats (named `synthetic_*` in `Tests/UpdateDoctorKitTests/Fixtures`). They have **not** been verified on a real managed Mac yet. Reports from managed fleets are very welcome.
-- **GitHub Actions (macos-15-intel runner):** build, 19 XCTest tests, universal binary, pkg, and a smoke run of `doctor` on an unmanaged runner. The universal release binary was also run on the Apple silicon MacBook Air above, and `brew install workprasanth9/tap/updatedoctor` was tested into a fresh scratch Homebrew prefix without `brew trust`.
+- **Menu bar app (1.1.0):** launched on the same MacBook Air. It showed the yellow AT_RISK dot, matching `updatedoctor doctor` there. The Needs admin state and the BLOCKED red dot are covered by tests on fixtures only, because that Mac is not MDM enrolled.
+- **GitHub Actions (macos-15-intel runner):** build, XCTest tests (19 for the checks plus 6 for the menu bar app's status mapping), universal binary, pkg, and a smoke run of `doctor` on an unmanaged runner. The universal release binary was also run on the Apple silicon MacBook Air above, and `brew install workprasanth9/tap/updatedoctor` was tested into a fresh scratch Homebrew prefix without `brew trust`.
 
 ## Building from source
 
@@ -116,13 +159,15 @@ swift build -c release
 swift test                 # needs Xcode (XCTest)
 swift run fixture-tests    # same tests without XCTest, for Macs with only the Command Line Tools (not used in CI)
 ./Scripts/build-release.sh [--universal]   # --universal needs Xcode
-./Scripts/build-pkg.sh
+./Scripts/build-app.sh [--universal]       # dist/UpdateDoctor.app
+./Scripts/build-pkg.sh                     # app plus CLI
 ```
 
 Project layout:
 
 - `Sources/UpdateDoctorKit/` the checks (`Doctor.swift`), pure parsers (`Parsers.swift`), output formats and the `SystemProbe` protocol. Every system read goes through `SystemProbe`, so tests replay recorded output.
 - `Sources/updatedoctor/` the command line entry point.
+- `Sources/UpdateDoctorMenuCore/` the menu bar app's state and status mapping (no AppKit, tested). `Sources/UpdateDoctorApp/` the AppKit menu bar app. `App/Info.plist` its bundle settings.
 - `Tests/UpdateDoctorKitTests/` XCTest tests and fixtures. `LocalTestRunner/` runs the same files without XCTest.
 - `Jamf/` the Extension Attribute script. `Installer/` the pkg thank you page.
 

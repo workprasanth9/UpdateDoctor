@@ -1,6 +1,6 @@
 #!/bin/bash
-# Builds dist/UpdateDoctor-<version>.pkg, which installs /usr/local/bin/updatedoctor.
-# Run Scripts/build-release.sh first. The pkg is a product archive with a thank you page.
+# Builds dist/UpdateDoctor-<version>.pkg, which installs UpdateDoctor.app in /Applications
+# and /usr/local/bin/updatedoctor. Run Scripts/build-release.sh and Scripts/build-app.sh first. The pkg is a product archive with a thank you page.
 # Set PKG_SIGN_ID to a Developer ID Installer identity to sign it (optional).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -11,16 +11,22 @@ VERSION=$(sed -nE 's/.*current = "(.*)".*/\1/p' Sources/UpdateDoctorKit/Version.
 REPO_URL=$(sed -nE 's/.*repositoryURL = "(.*)".*/\1/p' Sources/UpdateDoctorKit/Version.swift)
 IDENTIFIER="com.workprasanth9.UpdateDoctor"
 [[ -x dist/updatedoctor ]] || { echo "Run Scripts/build-release.sh first."; exit 1; }
+[[ -d dist/UpdateDoctor.app ]] || { echo "Run Scripts/build-app.sh first."; exit 1; }
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-mkdir -p "$WORK/root/usr/local/bin" "$WORK/packages" "$WORK/resources"
+mkdir -p "$WORK/root/usr/local/bin" "$WORK/root/Applications" "$WORK/packages" "$WORK/resources"
+ditto --noextattr --noqtn dist/UpdateDoctor.app "$WORK/root/Applications/UpdateDoctor.app"
 ditto --noextattr --noqtn dist/updatedoctor "$WORK/root/usr/local/bin/updatedoctor"
 chmod 755 "$WORK/root/usr/local/bin/updatedoctor"
 xattr -cr "$WORK/root" 2>/dev/null || true
 
+# Install to /Applications even if another copy of the app exists elsewhere.
+pkgbuild --analyze --root "$WORK/root" "$WORK/components.plist" >/dev/null
+plutil -replace 0.BundleIsRelocatable -bool false "$WORK/components.plist"
+
 COMPONENT="$WORK/packages/UpdateDoctor-component.pkg"
-pkgbuild --root "$WORK/root" --identifier "$IDENTIFIER" --version "$VERSION" \
+pkgbuild --root "$WORK/root" --component-plist "$WORK/components.plist" --identifier "$IDENTIFIER" --version "$VERSION" \
   --install-location / --filter '\.DS_Store$' "$COMPONENT"
 
 sed -e "s|__VERSION__|${VERSION}|g" -e "s|__REPO_URL__|${REPO_URL}|g" \
@@ -48,4 +54,4 @@ PKG="dist/UpdateDoctor-${VERSION}.pkg"
 productbuild --distribution "$WORK/distribution.xml" --resources "$WORK/resources" \
   --package-path "$WORK/packages" ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} "$PKG"
 echo "Built $PKG"
-pkgutil --payload-files "$PKG" | grep updatedoctor
+pkgutil --payload-files "$PKG" | grep -E "UpdateDoctor.app$|updatedoctor$"
