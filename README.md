@@ -114,7 +114,7 @@ Be clear about what was proven where:
 ```bash
 swift build -c release
 swift test                 # needs Xcode (XCTest)
-swift run fixture-tests    # same tests, works with only the Command Line Tools
+swift run fixture-tests    # same tests without XCTest, for Macs with only the Command Line Tools (not used in CI)
 ./Scripts/build-release.sh [--universal]   # --universal needs Xcode
 ./Scripts/build-pkg.sh
 ```
