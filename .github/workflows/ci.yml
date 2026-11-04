@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
 
@@ -46,9 +46,7 @@ jobs:
           lipo -archs dist/updatedoctor | grep -q arm64
           lipo -archs dist/updatedoctor
           dist/updatedoctor version
-          # The runner is Apple silicon. Try the x86_64 slice under Rosetta if the image has it.
-          if arch -x86_64 /usr/bin/true 2>/dev/null; then arch -x86_64 dist/updatedoctor version; else echo "Rosetta not available, x86_64 slice not executed"; fi
-          dist/updatedoctor help
+                    dist/updatedoctor help
           # Hosted runners are not MDM managed. The report is informational here.
           dist/updatedoctor doctor --quick || true
           dist/updatedoctor doctor --quick --json > report.json || true

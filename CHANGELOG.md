@@ -4,7 +4,7 @@
 
 - New standalone Jamf Pro Extension Attribute, `Jamf/updatedoctor-ea-standalone.sh`: pure bash 3.2, no binary needed. Reports the verdict, the failing and warning checks with their reasons (including the recorded DDM error reason and time), info, and which checks were skipped (Bootstrap Token without root). Reads the cached update list instead of running `softwareupdate -l`, and adds an install.log failure check. Attached to the release.
 - `Scripts/test-ea-standalone.sh`: 29 fixture cases, run in CI with shellcheck.
-- CI moved from the macos-15-intel runner (GitHub could not schedule it) to macos-15 (Apple silicon). The universal binary is still built for x86_64 and arm64 and checked with lipo.
+- CI still builds on macos-15-intel. It now also checks with lipo that the CLI inside the app is universal (x86_64 and arm64).
 - App and CLI behavior unchanged.
 
 ## 1.1.2 (2026-10-28)
