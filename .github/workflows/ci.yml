@@ -15,6 +15,15 @@ jobs:
       - name: Text check (no em dashes)
         run: ./Scripts/check-text.sh
 
+      - name: Standalone Jamf EA (shellcheck, fixture tests, live run)
+        run: |
+          brew list shellcheck >/dev/null 2>&1 || brew install shellcheck
+          shellcheck Jamf/*.sh Scripts/test-ea-standalone.sh
+          /bin/bash --version | head -1
+          /bin/bash Scripts/test-ea-standalone.sh
+          # Live run on the runner, not root. Informational.
+          /bin/bash Jamf/updatedoctor-ea-standalone.sh
+
       - name: Swift version
         run: swift --version
 
@@ -57,7 +66,8 @@ jobs:
         run: |
           ./Scripts/build-pkg.sh
           pkgutil --payload-files dist/UpdateDoctor-*.pkg | grep -E "UpdateDoctor.app$|updatedoctor$|AppIcon.icns$"
-          (cd dist && shasum -a 256 updatedoctor-*.tar.gz updatedoctor-*.zip UpdateDoctor-*-app.zip UpdateDoctor-*.pkg > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          cp Jamf/updatedoctor-ea-standalone.sh dist/
+          (cd dist && shasum -a 256 updatedoctor-*.tar.gz updatedoctor-*.zip UpdateDoctor-*-app.zip UpdateDoctor-*.pkg updatedoctor-ea-standalone.sh > SHA256SUMS.txt && cat SHA256SUMS.txt)
 
       - uses: actions/upload-artifact@v4
         with:
@@ -67,4 +77,5 @@ jobs:
             dist/updatedoctor-*.zip
             dist/UpdateDoctor-*-app.zip
             dist/UpdateDoctor-*.pkg
+            dist/updatedoctor-ea-standalone.sh
             dist/SHA256SUMS.txt

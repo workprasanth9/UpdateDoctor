@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 (2026-11-04)
+
+- New standalone Jamf Pro Extension Attribute, `Jamf/updatedoctor-ea-standalone.sh`: pure bash 3.2, no binary needed. Reports the verdict, the failing and warning checks with their reasons (including the recorded DDM error reason and time), info, and which checks were skipped (Bootstrap Token without root). Reads the cached update list instead of running `softwareupdate -l`, and adds an install.log failure check. Attached to the release.
+- `Scripts/test-ea-standalone.sh`: 29 fixture cases, run in CI with shellcheck.
+- App and CLI behavior unchanged.
+
 ## 1.1.2 (2026-10-28)
 
 - Status window sizes itself to its content (up to 85 percent of the screen height), opens scrolled to the very top with a proper inset, and grows when check results arrive, so the "Last checked" line and the last check row are no longer clipped.

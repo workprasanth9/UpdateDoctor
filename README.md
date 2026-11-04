@@ -131,10 +131,20 @@ UpdateDoctor never installs, downloads, schedules, or changes anything. A unit t
 
 ## Deploy with Jamf Pro
 
-1. Upload `UpdateDoctor-1.0.0.pkg` to Jamf Pro and deploy it with a policy (or install with Homebrew).
+1. Upload `UpdateDoctor-<version>.pkg` to Jamf Pro and deploy it with a policy (or install with Homebrew).
 2. Create an Extension Attribute: Data type **String**, Input type **Script**, and paste [`Jamf/updatedoctor-ea.sh`](Jamf/updatedoctor-ea.sh). Jamf runs EAs as root, so the Bootstrap Token check is included. It uses `--quick` so inventory stays fast.
 3. Build Smart Groups on the value, for example `like BLOCKED` to find Macs that will miss the deadline, and `like bootstrap_token` to find the exact reason.
 4. For a full report on one Mac, run a policy with `updatedoctor doctor --json` and read the policy log.
+
+### No binary: standalone bash Extension Attribute
+
+[`Jamf/updatedoctor-ea-standalone.sh`](Jamf/updatedoctor-ea-standalone.sh) runs most checks in plain bash (3.2, shellcheck clean), so you can collect the verdict and the top failure reasons without deploying anything. Create an Extension Attribute with Data type **String** and Input type **Script**, and paste the script. It is also attached to each release. Example from a real Mac:
+
+```
+<result>BLOCKED | fail: ddm_errors (Software update failed. x1 at 2026-11-01T18:30:32-06:00) | warn: os_version (26.7 behind 26.7.2, macOS 27.2 also supported); power (on battery at 21%, install may wait for power) | info: macOS 26.7 (25G229), offered: Safari 27.2, macOS Tahoe 26.7.2, FileVault on, beta catalog, not MDM enrolled | ud-sh 1.2.0</result>
+```
+
+It skips the live `softwareupdate -l` scan and the unified log check (too slow for inventory; use the CLI). Bootstrap Token needs root and is listed as skipped otherwise. MDM, Bootstrap Token, deferral and DDM on a managed Mac are fixture tested only. Full setup, check table and what is tested where: [docs/jamf-standalone-ea.md](docs/jamf-standalone-ea.md).
 
 ## How this differs from existing tools
 
@@ -174,7 +184,7 @@ Project layout:
 - `Sources/updatedoctor/` the command line entry point.
 - `Sources/UpdateDoctorMenuCore/` the menu bar app's state and status mapping (no AppKit, tested). `Sources/UpdateDoctorApp/` the AppKit menu bar app. `App/Info.plist` its bundle settings.
 - `Tests/UpdateDoctorKitTests/` XCTest tests and fixtures. `LocalTestRunner/` runs the same files without XCTest.
-- `Jamf/` the Extension Attribute script. `Installer/` the pkg thank you page.
+- `Jamf/` the Extension Attribute scripts (`updatedoctor-ea.sh` calls the CLI, `updatedoctor-ea-standalone.sh` is pure bash). `Installer/` the pkg thank you page.
 
 ## License
 
