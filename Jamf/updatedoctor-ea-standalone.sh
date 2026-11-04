@@ -224,15 +224,15 @@ check_mdm() {
 
 # 8 to 10. Software Update preferences: DDM errors, scan history, catalog, automatic settings
 check_su_prefs() {
-  local f m ddm reason ts count last code url days epoch key off="" val
+  local f m reason ts count last code url days epoch key off="" val
   f=$(path "$SU_PREFS" SoftwareUpdate.plist)
   if [ ! -r "$f" ]; then add_skip su_history "cannot read $SU_PREFS"; return; fi
 
-  ddm=$(plist_json "$f" DDMPersistedErrorKey)
-  if [ -n "$ddm" ] && [ "$ddm" != "{}" ]; then
-    reason=$(plist_get "$f" DDMPersistedErrorKey.reason)
-    ts=$(plist_get "$f" DDMPersistedErrorKey.timestamp)
-    count=$(plist_get "$f" DDMPersistedErrorKey.count)
+  # Read the fields directly; extracting the whole dictionary as JSON is not reliable on every macOS.
+  reason=$(plist_get "$f" DDMPersistedErrorKey.reason)
+  ts=$(plist_get "$f" DDMPersistedErrorKey.timestamp)
+  count=$(plist_get "$f" DDMPersistedErrorKey.count)
+  if [ -n "$reason$ts$count" ]; then
     add_fail ddm_errors "${reason:-error recorded}${count:+ x$count}${ts:+ at $ts}"
   fi
 
