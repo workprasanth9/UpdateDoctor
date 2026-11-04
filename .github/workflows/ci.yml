@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15-intel
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
@@ -24,8 +24,11 @@ jobs:
           # Live run on the runner, not root. Informational.
           /bin/bash Jamf/updatedoctor-ea-standalone.sh
 
-      - name: Swift version
-        run: swift --version
+      - name: Swift version and runner arch
+        run: |
+          swift --version
+          uname -m
+          xcode-select -p
 
       - name: Unit tests (XCTest, recorded fixtures, no MDM needed)
         run: |
@@ -41,7 +44,10 @@ jobs:
           lipo -info dist/updatedoctor
           lipo -archs dist/updatedoctor | grep -q x86_64
           lipo -archs dist/updatedoctor | grep -q arm64
+          lipo -archs dist/updatedoctor
           dist/updatedoctor version
+          # The runner is Apple silicon. Try the x86_64 slice under Rosetta if the image has it.
+          if arch -x86_64 /usr/bin/true 2>/dev/null; then arch -x86_64 dist/updatedoctor version; else echo "Rosetta not available, x86_64 slice not executed"; fi
           dist/updatedoctor help
           # Hosted runners are not MDM managed. The report is informational here.
           dist/updatedoctor doctor --quick || true
@@ -54,6 +60,8 @@ jobs:
           ./Scripts/build-app.sh --universal
           lipo -archs dist/UpdateDoctor.app/Contents/MacOS/UpdateDoctor | grep -q x86_64
           lipo -archs dist/UpdateDoctor.app/Contents/MacOS/UpdateDoctor | grep -q arm64
+          lipo -archs dist/UpdateDoctor.app/Contents/Resources/updatedoctor | grep -q x86_64
+          lipo -archs dist/UpdateDoctor.app/Contents/Resources/updatedoctor | grep -q arm64
           lipo -info dist/UpdateDoctor.app/Contents/Resources/updatedoctor
           codesign -dv dist/UpdateDoctor.app 2>&1 | grep -E "flags|Signature"
           test -f dist/UpdateDoctor.app/Contents/Resources/AppIcon.icns
