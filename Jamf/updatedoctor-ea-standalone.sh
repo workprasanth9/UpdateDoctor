@@ -62,7 +62,19 @@ path() {
 }
 
 # plist_get FILE KEYPATH: raw value of a plist or JSON key, empty if missing.
-plist_get() { /usr/bin/plutil -extract "$2" raw -o - "$1" 2>/dev/null; }
+# Some macOS versions (seen on 15) print plutil errors to stdout, so only use output on success.
+plist_get() {
+  local v
+  v=$(/usr/bin/plutil -extract "$2" raw -o - "$1" 2>/dev/null) || return 1
+  printf '%s' "$v"
+}
+
+# plist_json FILE KEYPATH: value as JSON, empty if missing.
+plist_json() {
+  local v
+  v=$(/usr/bin/plutil -extract "$2" json -o - "$1" 2>/dev/null) || return 1
+  printf '%s' "$v"
+}
 
 # ver_lt A B: true if dotted version A is lower than B.
 ver_lt() {
@@ -112,7 +124,7 @@ check_os_version() {
   i=0
   while [ $i -lt "$n" ]; do
     v=$(plist_get "$feed" "PublicAssetSets.macOS.$i.ProductVersion")
-    sup=$(/usr/bin/plutil -extract "PublicAssetSets.macOS.$i.SupportedDevices" json -o - "$feed" 2>/dev/null)
+    sup=$(plist_json "$feed" "PublicAssetSets.macOS.$i.SupportedDevices")
     local match=0 d
     if [ -z "$devices" ]; then match=1; fi
     for d in $devices; do
@@ -154,7 +166,8 @@ check_pending() {
 # 3. Free space in the APFS container
 check_disk() {
   local free gb
-  free=$(cmd diskutil /usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSContainerFree raw -o - - 2>/dev/null)
+  cmd diskutil /usr/sbin/diskutil info -plist / > "$TMP_DIR/disk.plist"
+  free=$(plist_get "$TMP_DIR/disk.plist" APFSContainerFree)
   case "$free" in ''|*[!0-9]*) add_skip disk_space "diskutil unreadable"; return ;; esac
   gb=$(awk -v b="$free" 'BEGIN { printf "%.1f GB", b / 1000000000 }')
   if [ "$free" -lt $DISK_FAIL ]; then add_fail disk_space "only $gb free, updates commonly fail below about 15 GB"
@@ -215,7 +228,7 @@ check_su_prefs() {
   f=$(path "$SU_PREFS" SoftwareUpdate.plist)
   if [ ! -r "$f" ]; then add_skip su_history "cannot read $SU_PREFS"; return; fi
 
-  ddm=$(/usr/bin/plutil -extract DDMPersistedErrorKey json -o - "$f" 2>/dev/null)
+  ddm=$(plist_json "$f" DDMPersistedErrorKey)
   if [ -n "$ddm" ] && [ "$ddm" != "{}" ]; then
     reason=$(plist_get "$f" DDMPersistedErrorKey.reason)
     ts=$(plist_get "$f" DDMPersistedErrorKey.timestamp)
